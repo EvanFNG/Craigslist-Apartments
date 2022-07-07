@@ -40,6 +40,8 @@ for page in pages:
     
     page_html = bs4.BeautifulSoup(response.text, 'html.parser')
 
+    posts = page_html.find_all('li', class_ = 'result-row')
+
     for post in posts:
         if post.find('span', class_ = 'result-hood') is not None:
 
@@ -128,5 +130,3 @@ df = pd.DataFrame(
 )
 
 df.to_csv('craigslist.csv', index = False)
-
-print('CSV export complete.')

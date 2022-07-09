@@ -6,9 +6,9 @@ import time
 import warnings
 import pandas as pd
 
-regions = ['anchorage', 'boston', 'chicago', 'honolulu', 'newyork', 'portland', 'seattle', 'sfbay', 'washingtondc']
+regions = ['austin', 'phoenix']
 
-def scrape_all(region: str) -> None:
+def scrape(region: str) -> None:
 
   response = requests.get(f'https://{region}.craigslist.org/search/apa?hasPic=1&min_price=&max_price=&availabilityMode=0&sale_date=all+dates')
   
@@ -28,8 +28,6 @@ def scrape_all(region: str) -> None:
   sqft = []
   url = []
   price = []
-  
-  print(f'Parsing {results_total} ads...')
   
   for page in pages:
   
@@ -128,4 +126,7 @@ def scrape_all(region: str) -> None:
       }
   )
   
-  df.to_csv('craigslist.csv', index = False)
+  df.to_csv(f'data/{region}_craigslist.csv', index = False)
+
+for i in regions:
+  scrape(i)

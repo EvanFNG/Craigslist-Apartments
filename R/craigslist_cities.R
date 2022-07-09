@@ -1,7 +1,7 @@
 library(tidyverse)
 library(scales)
 
-# List all files in the Craigslist folder.
+# List all files in the data folder.
 file_source <- fs::dir_ls('data')
 
 # map_dfr in conjunction with read_csv reads all
@@ -12,6 +12,7 @@ file_source |>
 
 appended_files |>
   mutate(
+    # Extract the city name from the file name
     city = str_to_title(str_match(filename, r'(([a-z]+)_craigslist)')[,2]),
     city = recode(
       .x = city,
@@ -19,69 +20,101 @@ appended_files |>
       'Sfbay' = 'San Francisco Bay',
       'Washingtondc' = 'DC'
     )) |>
-  select(-filename, neighborhood = town) |>
+  select(-filename) |>
   relocate(city, .after = date_time) |>
   drop_na(price, beds, sqft) |>
+  # Removing questionable data
   filter(
     sqft <= 6000,
     between(price, 800, 30000)
   ) |>
+  # Drop repeated / spammed posts
   distinct(title, .keep_all = TRUE) ->
   apts
 
-apts |>
-  group_by(city) |>
-  summarise(
-    across(where(is.numeric), .fns = list('mean' = mean, 'median' = median)),
-    n_listings = n()
-  ) |>
-  arrange(desc(price_median)) ->
-  city_summary
+# Filter out apartments costing more than this.
+# There should be few data points above this threshold
+# and most / all of them should be ultra-luxury
+price_threshold <- 6000
 
-apts |>
-  filter(price <= 6000) |>
+# Taking a sample of 300 points from each city.
+# Otherwise, there are too many data points for a scatter plot.
+set.seed(123)
+sample_data <- apts |>
+  filter(price <= price_threshold) |>
+  group_by(city) |>
+  slice_sample(n = 300) |>
+  ungroup()
+
+# Summary of sample by city under the price threshold
+sample_data |>
   group_by(city) |>
   summarise(
     across(where(is.numeric), .fns = list('mean' = mean, 'median' = median)),
     n_listings = n()
   ) ->
-  non_lux_summary
+  sample_summary
 
-apts |>
+# Linear regression slope and intercept by city
+sample_data |>
+  nest_by(city) |>
+  mutate(
+    city_lm = list(lm(data$price ~ data$sqft)),
+    y_int = pluck(city_lm, 'coefficients')[1],
+    slope = pluck(city_lm, 'coefficients')[2],
+    equation = str_glue('y = {round(slope, 2)}x + {round(y_int, 2)}'),
+    r_squared = cor(data$sqft, data$price)^2
+  ) |>
+  select(-data, -city_lm) |>
+  ungroup() ->
+  cities_lm
+
+sample_data |>
   mutate(
     beds = factor(if_else(
-      beds >= 5,
-      '5 +', as.character(beds)
+      beds >= 4,
+      '4 +', as.character(beds)
       ),
-      levels = c('1', '2', '3', '4', '5 +')
-    )
+      levels = c('1', '2', '3', '4 +')
+    ),
+    city = as_factor(city)
   )|>
-  filter(price <= 6000) |>
   ggplot(aes(x = sqft, y = price)) +
-  geom_point() +
-  facet_wrap(~ city) +
+  geom_jitter(aes(color = beds, alpha = 0.5)) +
+  facet_wrap(~ fct_relevel(
+    city,
+    'Boston', 'Chicago', 'NYC',
+    'Austin', 'Denver', 'DC',
+    'Portland', 'San Francisco Bay', 'Seattle'
+    )
+  ) +
+  stat_smooth(method = 'lm', se = FALSE, color = '#504b99') +
   scale_x_continuous(labels = label_comma()) +
   scale_y_continuous(
     labels = label_dollar(),
     breaks = seq(1000, 10000, 1000)
   ) +
   geom_hline(
-    data = non_lux_summary,
-    aes(yintercept = price_median),
-    color = 'green',
-    linetype = 'dashed') +
+    data = sample_summary,
+    aes(
+      yintercept = price_median,
+      linetype = 'Median Price'),
+    color = 'black') +
   geom_vline(
-    data = non_lux_summary,
-    aes(xintercept = sqft_median),
-    color = 'blue',
-    linetype = 'dashed'
+    data = sample_summary,
+    aes(
+      xintercept = sqft_median,
+      linetype = 'Median sqft'),
+    color = 'blue'
   ) +
-  geom_jitter(aes(color = beds, alpha = 0.6)) +
   theme_bw() +
   labs(
     title = 'Craigslist Apartment Listings of US Cities',
-    subtitle = 'Price v. Square Feet',
+    subtitle = expression('Price Per Month v. ft'^2),
     x = expression('ft'^2),
-    y = '$ Per Month',
+    y = '',
     color = 'Beds'
-  )
+  ) +
+  guides(alpha = 'none') +
+  scale_linetype_manual(name = '', values = c('dashed', 'dotted')) +
+  scale_color_brewer(palette = 'Dark2')

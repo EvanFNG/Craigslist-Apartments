@@ -13,7 +13,7 @@ scraping, go to python -\> web_scrape.py. I used the script to generate
 csv files for each city of interest.
 
 ### Data Reading
-
+ 
 We will take the csv for each city and combine them into a single
 dataframe.
 

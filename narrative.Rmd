@@ -1,0 +1,276 @@
+---
+title: "Craigslist Apartments"
+author: "EvanFNG"
+date: '2022-07-08'
+output: github_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+To gather data on apartment listings from various US cities, I followed
+this tutorial from Towards Data Science:
+<https://towardsdatascience.com/web-scraping-craigslist-a-complete-tutorial-c41cea4f4981>
+
+I made a few small adjustments to the code to fix some errors and
+customize it to my needs. To view the adjusted code for the web
+scraping, go to python -\> web_scrape.py. I used the script to generate
+csv files for each city of interest.
+
+### Data Reading
+
+We will take the csv for each city and combine them into a single
+dataframe.
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(scales)
+
+# Lists files in directory
+file_source <- fs::dir_ls('data')
+
+file_source
+
+# Use map_dfr and read_csv together to combine all files into one dataframe
+appended_files <- file_source |> 
+  map_dfr(read_csv, .id = 'filename')
+
+appended_files
+```
+
+### Data Cleaning
+
+Now that we have one dataframe, we will make some transformations and
+remove noisy data.
+
+```{r}
+appended_files |> 
+  mutate(
+    # Extract city from filename
+    city = str_to_title(str_match(filename, r'(([a-z]+)_craigslist)')[,2]),
+    # Renaming some of the city names
+    city = recode(
+      .x = city,
+      'Newyork' = 'NYC',
+      'Sfbay' = 'San Francisco Bay',
+      'Washingtondc' = 'DC'
+    )
+  ) |> 
+  select(-filename) |> 
+  relocate(city, .after = date_time) |> 
+  # We can't have missing data in these rows.
+  drop_na(price, beds, sqft) |> 
+  # First pass at removing noisy data.
+  filter(
+    sqft <= 6000,
+    between(price, 800, 20000)
+  ) |> 
+  # Many posts on Craigslist are reposted.
+  # Title will be the best way to identify those.
+  distinct(title, .keep_all = TRUE) ->
+  apts
+
+apts
+```
+
+### Sampling the Data
+
+First, I will set a max price threshold. Extreme examples of
+ultra-luxury units or incorrectly entered prices will skew the data and
+plots.
+
+```{r}
+price_threshold <- 6000
+```
+
+Now, let's take a reasonably-sized sample from each city.
+
+```{r}
+apts |> 
+  count(city) |> 
+  arrange(n)
+```
+
+New York City has the fewest listings, so if we take equal samples for
+each city, it can be no larger than 461. We don't want to use every data
+point, because this will overcrowd the plots.
+
+```{r}
+# Ensures the same sample on every run
+set.seed(123)
+sample_data <- apts |> 
+  filter(price <= price_threshold) |> 
+  group_by(city) |> 
+  slice_sample(n = 400) |> 
+  ungroup()
+
+sample_data
+```
+
+### Exploring the Sample
+
+First, let's get the mean and median of the price and square footage of
+each city. We can also confirm that we have equal size groups for each.
+
+```{r}
+sample_data |> 
+  group_by(city) |> 
+  summarise(
+    across(where(is.numeric), .fns = list(mean = mean, median = median)),
+    group_size = n()
+  ) ->
+  sample_summary
+
+sample_summary
+```
+
+The mean and median of the price and square footage will be interesting
+information to add to the plots.
+
+While not necessarily required for the plots, it would also be
+interesting to have a linear model of price in relation to square
+footage for each city. We can get that information by the following:
+
+```{r}
+sample_data |> 
+  nest_by(city)
+```
+
+`nest_by` works similarly to `group_by`, but creates a tibble column for
+each group, consisting of each variable not grouped. It returns a
+`rowwise` tibble to perform operations on the tibble columns for the
+groups.
+
+```{r}
+sample_data |> 
+  nest_by(city) |> 
+  mutate(
+    city_lm = list(lm(data$price ~ data$sqft)),
+    y_int = pluck(city_lm, 'coefficients')[1],
+    slope = pluck(city_lm, 'coefficients')[2],
+    equation = str_glue('y = {round(slope, 2)}x + {round(y_int, 2)}'),
+    r_squared = cor(data$sqft, data$price)^2
+  ) |> 
+  # Exit rowwise.
+  ungroup() |> 
+  select(-data, -city_lm) ->
+  cities_lm
+
+cities_lm
+```
+
+# Creating the Visual
+
+We'll start with a basic scatter plot. We'll convert `beds` and `city`
+to factors. This is because we want `beds` to be interpreted as a
+discrete value, and we want to control the order of each `city`. We'll
+use the functions `geom_jitter` to help control for data that is too
+densely packed, and `facet_wrap` to put each city in its own grid.
+
+Note that the visual may look too small on here. When rendered into a full window, it will appear as expected.
+
+```{r}
+sample_data |>
+  mutate(
+    beds = factor(if_else(
+      beds >= 4,
+      '4 +', as.character(beds)
+      ),
+      levels = c('1', '2', '3', '4 +')
+    ),
+    city = as_factor(city)
+  )|>
+  ggplot(aes(x = sqft, y = price)) +
+  geom_jitter(aes(color = beds, alpha = 0.5)) +
+  facet_wrap(~ fct_relevel(
+    city,
+    'Boston', 'Chicago', 'NYC',
+    'Austin', 'Denver', 'DC',
+    'Portland', 'San Francisco Bay', 'Seattle'
+    )
+  ) ->
+  p
+
+p
+```
+
+We have the base plot for each city, with a color legend for the number
+of beds. We can remove the alpha legend, as we only used that to make
+the points somewhat transparent. We can also add units and notation to
+the axes numbers.
+
+```{r}
+p +
+  guides(alpha = 'none') +
+  scale_x_continuous(labels = label_comma()) +
+  scale_y_continuous(
+    labels = label_dollar(),
+    breaks = seq(1000, price_threshold, 1000)
+  ) ->
+  p
+
+p
+```
+
+Let's also add a title, use title-case for the beds legend, and drop the
+y-axis label (the dollar sign and our subtitle will make it
+self-explanatory.)
+
+```{r}
+p +
+  labs(
+    title = 'Craigslist Apartment Listings of US Cities',
+    subtitle = expression('Price Per Month v. ft'^2),
+    x = expression('ft'^2),
+    y = '',
+    color = 'Beds'
+  ) ->
+  p
+
+p
+```
+We can add the line for each city's regression model, as well. We could do this using the linear models
+for each city that we created earlier, but ggplot already has a function built-in to handle that for us.
+That would be ```stat_smooth```:
+
+```{r}
+p +
+  stat_smooth(method = 'lm', se = FALSE, color = '#504b99') ->
+  p
+
+p
+```
+
+Finally, let's overlay the median price and median square footage for each city, and add a theme:
+
+```{r}
+p +
+  geom_hline(
+    data = sample_summary,
+    aes(
+      yintercept = price_median,
+      linetype = 'Median Price'
+    ),
+    color = 'black'
+  ) +
+  geom_vline(
+    data = sample_summary,
+    aes(
+      xintercept = sqft_median,
+      linetype = 'Median Size',
+    ),
+    color = 'black',
+    show.legend = FALSE
+  ) +
+  scale_linetype_manual(
+    name = '',
+    values = c('dashed', 'dotted')
+  ) +
+  theme_bw() +
+  scale_color_brewer(palette = 'Dark2')
+```
+

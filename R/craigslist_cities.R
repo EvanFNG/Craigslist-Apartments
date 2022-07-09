@@ -19,14 +19,15 @@ appended_files |>
       'Newyork' = 'NYC',
       'Sfbay' = 'San Francisco Bay',
       'Washingtondc' = 'DC'
-    )) |>
+      )
+    ) |>
   select(-filename) |>
   relocate(city, .after = date_time) |>
   drop_na(price, beds, sqft) |>
   # Removing questionable data
   filter(
     sqft <= 6000,
-    between(price, 800, 30000)
+    between(price, 800, 20000)
   ) |>
   # Drop repeated / spammed posts
   distinct(title, .keep_all = TRUE) ->
@@ -43,7 +44,7 @@ set.seed(123)
 sample_data <- apts |>
   filter(price <= price_threshold) |>
   group_by(city) |>
-  slice_sample(n = 300) |>
+  slice_sample(n = 400) |>
   ungroup()
 
 # Summary of sample by city under the price threshold
@@ -65,8 +66,8 @@ sample_data |>
     equation = str_glue('y = {round(slope, 2)}x + {round(y_int, 2)}'),
     r_squared = cor(data$sqft, data$price)^2
   ) |>
-  select(-data, -city_lm) |>
-  ungroup() ->
+  ungroup() |>
+  select(-data, -city_lm) ->
   cities_lm
 
 sample_data |>
@@ -92,7 +93,7 @@ sample_data |>
   scale_x_continuous(labels = label_comma()) +
   scale_y_continuous(
     labels = label_dollar(),
-    breaks = seq(1000, 10000, 1000)
+    breaks = seq(1000, price_threshold, 1000)
   ) +
   geom_hline(
     data = sample_summary,
@@ -104,9 +105,11 @@ sample_data |>
     data = sample_summary,
     aes(
       xintercept = sqft_median,
-      linetype = 'Median sqft'),
-    color = 'blue'
+      linetype = 'Median Size'),
+    color = 'blue',
+    show.legend = FALSE
   ) +
+  scale_linetype_manual(name = '', values = c('dashed', 'dotted')) +
   theme_bw() +
   labs(
     title = 'Craigslist Apartment Listings of US Cities',
@@ -116,5 +119,4 @@ sample_data |>
     color = 'Beds'
   ) +
   guides(alpha = 'none') +
-  scale_linetype_manual(name = '', values = c('dashed', 'dotted')) +
   scale_color_brewer(palette = 'Dark2')

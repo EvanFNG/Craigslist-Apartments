@@ -13,9 +13,9 @@ scraping, go to python -\> web_scrape.py. I used the script to generate
 csv files for each city of interest.
 
 ### Data Reading
- 
+
 We will take the csv for each city and combine them into a single
-dataframe.
+tibble.
 
 ``` r
 library(tidyverse)
@@ -34,7 +34,7 @@ file_source
     ## data/washingtondc_craigslist.csv
 
 ``` r
-# Use map_dfr and read_csv together to combine all files into one dataframe
+# Use map_dfr and read_csv together to combine all files into one tibble
 appended_files <- file_source |> 
   map_dfr(read_csv, .id = 'filename')
 

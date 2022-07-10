@@ -15,7 +15,7 @@ csv files for each city of interest.
 ### Data Reading
 
 We will take the csv for each city and combine them into a single
-tibble.
+dataframe.
 
 ``` r
 library(tidyverse)
@@ -34,7 +34,7 @@ file_source
     ## data/washingtondc_craigslist.csv
 
 ``` r
-# Use map_dfr and read_csv together to combine all files into one tibble
+# Use map_dfr and read_csv together to combine all files into one dataframe
 appended_files <- file_source |> 
   map_dfr(read_csv, .id = 'filename')
 
@@ -153,7 +153,7 @@ sample_data <- apts |>
 sample_data
 ```
 
-    ## # A tibble: 3,600 × 8
+    ## # A tibble: 2,700 × 8
     ##    date_time           city   town                 title price  beds  sqft url  
     ##    <dttm>              <chr>  <chr>                <chr> <dbl> <dbl> <dbl> <chr>
     ##  1 2022-07-08 12:33:00 Austin (Sunset Valley Sout… "Top…  3090     2  1215 http…
@@ -166,7 +166,7 @@ sample_data
     ##  8 2022-07-06 18:06:00 Austin (Downtown / Lady Bi… "One…  3500     1   940 http…
     ##  9 2022-07-06 17:45:00 Austin (Round Rock)         "\U0…  1280     1   555 http…
     ## 10 2022-07-07 12:01:00 Austin (Central)            "~ A…  3662     2  1199 http…
-    ## # … with 3,590 more rows
+    ## # … with 2,690 more rows
 
 ### Exploring the Sample
 
@@ -188,15 +188,15 @@ sample_summary
     ## # A tibble: 9 × 8
     ##   city       price_mean price_median beds_mean beds_median sqft_mean sqft_median
     ##   <chr>           <dbl>        <dbl>     <dbl>       <dbl>     <dbl>       <dbl>
-    ## 1 Austin          2192.        1989       1.59           1      961.        818 
-    ## 2 Boston          2929.        2800       2.11           2     1055.       1000 
-    ## 3 Chicago         1972.        1775       2.1            2     1122.       1000 
-    ## 4 DC              2141.        2000       1.64           2      926.        872.
-    ## 5 Denver          2248.        2062       1.59           1      950.        858 
-    ## 6 NYC             2889.        2588.      2.07           2      982.        928.
-    ## 7 Portland        1967.        1862.      1.86           2      962.        880 
-    ## 8 San Franc…      3216.        3088       1.68           2      911.        858.
-    ## 9 Seattle         2247.        2054.      1.72           2      923.        866 
+    ## 1 Austin          2203.        1994       1.58           1      961.        794.
+    ## 2 Boston          2971.        2850       2.17           2     1077.       1000 
+    ## 3 Chicago         1995.        1798.      2.12           2     1137.       1035 
+    ## 4 DC              2129.        2000       1.62           2      914.        889 
+    ## 5 Denver          2161.        2019       1.55           1      912.        807 
+    ## 6 NYC             2841.        2500       2.04           2      986.        995 
+    ## 7 Portland        2024.        1895       1.96           2     1004.        925 
+    ## 8 San Franc…      3188.        3018       1.65           2      893.        840 
+    ## 9 Seattle         2223.        2048.      1.68           2      916.        876 
     ## # … with 1 more variable: group_size <int>
 
 The mean and median of the price and square footage will be interesting
@@ -215,15 +215,15 @@ sample_data |>
     ## # Rowwise:  city
     ##   city                            data
     ##   <chr>             <list<tibble[,7]>>
-    ## 1 Austin                     [400 × 7]
-    ## 2 Boston                     [400 × 7]
-    ## 3 Chicago                    [400 × 7]
-    ## 4 DC                         [400 × 7]
-    ## 5 Denver                     [400 × 7]
-    ## 6 NYC                        [400 × 7]
-    ## 7 Portland                   [400 × 7]
-    ## 8 San Francisco Bay          [400 × 7]
-    ## 9 Seattle                    [400 × 7]
+    ## 1 Austin                     [300 × 7]
+    ## 2 Boston                     [300 × 7]
+    ## 3 Chicago                    [300 × 7]
+    ## 4 DC                         [300 × 7]
+    ## 5 Denver                     [300 × 7]
+    ## 6 NYC                        [300 × 7]
+    ## 7 Portland                   [300 × 7]
+    ## 8 San Francisco Bay          [300 × 7]
+    ## 9 Seattle                    [300 × 7]
 
 `nest_by` works similarly to `group_by`, but creates a tibble column for
 each group, consisting of each variable not grouped. It returns a
@@ -235,8 +235,8 @@ sample_data |>
   nest_by(city) |> 
   mutate(
     city_lm = list(lm(data$price ~ data$sqft)),
-    y_int = pluck(city_lm, 'coefficients')[1],
-    slope = pluck(city_lm, 'coefficients')[2],
+    y_int = pluck(city_lm, 'coefficients', 1),
+    slope = pluck(city_lm, 'coefficients', 2),
     equation = str_glue('y = {round(slope, 2)}x + {round(y_int, 2)}'),
     r_squared = cor(data$sqft, data$price)^2
   ) |> 
@@ -251,15 +251,15 @@ cities_lm
     ## # A tibble: 9 × 5
     ##   city              y_int slope equation            r_squared
     ##   <chr>             <dbl> <dbl> <glue>                  <dbl>
-    ## 1 Austin            1313. 0.915 y = 0.91x + 1312.65    0.260 
-    ## 2 Boston            2095. 0.790 y = 0.79x + 2095.26    0.0860
-    ## 3 Chicago            744. 1.09  y = 1.09x + 744.01     0.453 
-    ## 4 DC                 963. 1.27  y = 1.27x + 962.69     0.320 
-    ## 5 Denver            1047. 1.27  y = 1.27x + 1046.71    0.368 
-    ## 6 NYC               1836. 1.07  y = 1.07x + 1835.86    0.104 
-    ## 7 Portland           891. 1.12  y = 1.12x + 891.49     0.597 
-    ## 8 San Francisco Bay 1463. 1.92  y = 1.92x + 1463.08    0.422 
-    ## 9 Seattle           1226. 1.11  y = 1.11x + 1225.57    0.358
+    ## 1 Austin            1310. 0.929 y = 0.93x + 1310.24     0.282
+    ## 2 Boston            1920. 0.976 y = 0.98x + 1919.86     0.122
+    ## 3 Chicago            793. 1.06  y = 1.06x + 793.34      0.412
+    ## 4 DC                1094. 1.13  y = 1.13x + 1093.82     0.238
+    ## 5 Denver             782. 1.51  y = 1.51x + 782.07      0.398
+    ## 6 NYC               1866. 0.988 y = 0.99x + 1865.99     0.101
+    ## 7 Portland           886. 1.13  y = 1.13x + 886.19      0.573
+    ## 8 San Francisco Bay 1514. 1.87  y = 1.87x + 1514.36     0.366
+    ## 9 Seattle           1051. 1.28  y = 1.28x + 1050.9      0.421
 
 # Creating the Visual
 
@@ -297,7 +297,7 @@ sample_data |>
 p
 ```
 
-![](narrative_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
 
 We have the base plot for each city, with a color legend for the number
 of beds. We can remove the alpha legend, as we only used that to make
@@ -317,7 +317,7 @@ p +
 p
 ```
 
-![](narrative_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-10-1.png)<!-- -->
 
 Let’s also add a title, use title-case for the beds legend, and drop the
 y-axis label (the dollar sign and our subtitle will make it
@@ -337,11 +337,12 @@ p +
 p
 ```
 
-![](narrative_files/figure-gfm/unnamed-chunk-11-1.png)<!-- --> We can
-add the line for each city’s regression model, as well. We could do this
-using the linear models for each city that we created earlier, but
-ggplot already has a function built-in to handle that for us. That would
-be `stat_smooth`:
+![](README_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+
+We can add the line for each city’s regression model, as well. We could
+do this using the linear models for each city that we created earlier,
+but ggplot already has a function built-in to handle that for us. That
+would be `stat_smooth`:
 
 ``` r
 p +
@@ -353,7 +354,7 @@ p
 
     ## `geom_smooth()` using formula 'y ~ x'
 
-![](narrative_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
 
 Finally, let’s overlay the median price and median square footage for
 each city, and add a theme:
@@ -387,4 +388,4 @@ p +
 
     ## `geom_smooth()` using formula 'y ~ x'
 
-![](narrative_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+![](README_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->

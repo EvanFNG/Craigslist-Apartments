@@ -150,8 +150,8 @@ sample_data |>
   nest_by(city) |> 
   mutate(
     city_lm = list(lm(data$price ~ data$sqft)),
-    y_int = pluck(city_lm, 'coefficients')[1],
-    slope = pluck(city_lm, 'coefficients')[2],
+    y_int = pluck(city_lm, 'coefficients', 1),
+    slope = pluck(city_lm, 'coefficients', 2),
     equation = str_glue('y = {round(slope, 2)}x + {round(y_int, 2)}'),
     r_squared = cor(data$sqft, data$price)^2
   ) |> 
@@ -171,7 +171,8 @@ discrete value, and we want to control the order of each `city`. We'll
 use the functions `geom_jitter` to help control for data that is too
 densely packed, and `facet_wrap` to put each city in its own grid.
 
-Note that the visual may look too small on here. When rendered into a full window, it will appear as expected.
+Note that the visual may look too small on here. When rendered into a
+full window, it will appear as expected.
 
 ```{r}
 sample_data |>
@@ -233,9 +234,11 @@ p +
 
 p
 ```
-We can add the line for each city's regression model, as well. We could do this using the linear models
-for each city that we created earlier, but ggplot already has a function built-in to handle that for us.
-That would be ```stat_smooth```:
+
+We can add the line for each city's regression model, as well. We could
+do this using the linear models for each city that we created earlier,
+but ggplot already has a function built-in to handle that for us. That
+would be `stat_smooth`:
 
 ```{r}
 p +
@@ -245,7 +248,8 @@ p +
 p
 ```
 
-Finally, let's overlay the median price and median square footage for each city, and add a theme:
+Finally, let's overlay the median price and median square footage for
+each city, and add a theme:
 
 ```{r}
 p +
@@ -273,4 +277,3 @@ p +
   theme_bw() +
   scale_color_brewer(palette = 'Dark2')
 ```
-

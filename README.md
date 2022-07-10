@@ -147,7 +147,7 @@ set.seed(123)
 sample_data <- apts |> 
   filter(price <= price_threshold) |> 
   group_by(city) |> 
-  slice_sample(n = 400) |> 
+  slice_sample(n = 300) |> 
   ungroup()
 
 sample_data
